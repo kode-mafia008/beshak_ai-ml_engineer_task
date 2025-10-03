@@ -41,11 +41,11 @@ async def health_check():
     """Health check endpoint"""
     try:
         # Check if API key is set
-        api_key = os.getenv("GOOGLE_API_KEY")
+        api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:
             return JSONResponse(
                 status_code=503,
-                content={"status": "unhealthy", "message": "GOOGLE_API_KEY not configured"}
+                content={"status": "unhealthy", "message": "OPENAI_API_KEY not configured"}
             )
         return {"status": "healthy"}
     except Exception as e:

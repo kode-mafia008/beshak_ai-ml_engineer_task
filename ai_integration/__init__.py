@@ -1,11 +1,9 @@
-from ._llm import GeminiLLM
+from ._llm import OpenAILLM
 from .pdf_processor._pdf_extract import InsurancePDFProcessor,InsurancePolicyData
 
 
 __all__ = [
-    "GeminiLLM",
+    "OpenAILLM",
     "InsurancePDFProcessor",
     "InsurancePolicyData"
 ]
-
-

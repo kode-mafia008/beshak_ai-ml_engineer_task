@@ -3,29 +3,28 @@ from typing import List, Any, Optional
 from pydantic import Field
 from dotenv import load_dotenv
 from langchain_core.language_models.llms import LLM
-from google.generativeai import GenerativeModel
-from google import generativeai as genai
 from langchain_core.callbacks.manager import CallbackManagerForLLMRun
 from langchain_core.prompts import PromptTemplate
+from openai import OpenAI
 import yaml
 
 load_dotenv()
 
-class GeminiLLM(LLM):
-    model_name: str = Field(default="gemini-2.0-flash")
-    model: GenerativeModel = Field(default=None, exclude=True)
+class OpenAILLM(LLM):
+    model_name: str = Field(default="gpt-4o-mini")
+    client: OpenAI = Field(default=None, exclude=True)
+    temperature: float = Field(default=0.0)
 
     @property
     def _llm_type(self) -> str:
-        return "gemini_custom"
+        return "openai_custom"
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        api_key = os.getenv("GOOGLE_API_KEY")
+        api_key = os.getenv("OPENAI_API_KEY")
         if not api_key: 
-            raise RuntimeError("GOOGLE_API_KEY not found in environment variables.")
-        genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel(self.model_name)
+            raise RuntimeError("OPENAI_API_KEY not found in environment variables.")
+        self.client = OpenAI(api_key=api_key)
 
     def _call(
         self,
@@ -34,9 +33,16 @@ class GeminiLLM(LLM):
         run_manager: Optional[CallbackManagerForLLMRun] = None,
         **kwargs: Any,
     ) -> str:
-        response = self.model.generate_content(prompt)
-        return response.text if hasattr(response, 'text') else response.parts[0].text
-
+        response = self.client.chat.completions.create(
+            model=self.model_name,
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant that extracts structured information from insurance documents."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=self.temperature,
+            stop=stop
+        )
+        return response.choices[0].message.content
 
 
 # Custom Prompt Loader class
@@ -73,7 +79,3 @@ class CustomPromptLoader:
                 )
             except Exception as e:
                 raise RuntimeError(f"Error loading prompt from {prompt_path}: {e}")
-        
- 
-    
- 
