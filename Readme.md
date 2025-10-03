@@ -25,8 +25,6 @@ FastAPI application that extracts structured data from insurance policy document
 ### 1. Install Dependencies
 
 ```bash
-python3 -m venv venv
-source venv/bin/activate
 pip install -r requirements.txt
 ```
 
@@ -41,12 +39,14 @@ Edit `.env`:
 ```
 MISTRAL_API_KEY=your_mistral_api_key_here
 OPENAI_API_KEY=your_openai_api_key_here
+API_AUTH_TOKEN=your_secure_api_token_here
 ```
 
 Get your keys:
 
 - Mistral AI: https://console.mistral.ai/api-keys
 - OpenAI: https://platform.openai.com/api-keys
+- API Auth Token: Generate with `openssl rand -hex 32`
 
 ### 3. Run
 
@@ -72,6 +72,7 @@ API: `http://localhost:8000` | Docs: `http://localhost:8000/docs`
 
 ```bash
 curl -X POST "http://localhost:8000/extract" \
+  -H "X-API-Key: your_api_token_here" \
   -H "Content-Type: multipart/form-data" \
   -F "file=@insurance_policy.pdf"
 ```
@@ -83,6 +84,7 @@ import requests
 
 response = requests.post(
     "http://localhost:8000/extract",
+    headers={"X-API-Key": "your_api_token_here"},
     files={"file": open("insurance_policy.pdf", "rb")}
 )
 print(response.json())
@@ -133,3 +135,42 @@ Document Upload → Mistral OCR → OpenAI Extraction → JSON Response
 - **Legal Compliance**: Infers room_rent_limit and waiting_period based on IRDAI regulations (only when document references compliance and 100% certain)
 - **Smart Parsing**: Separates clean policy names from plan codes
 - **Error Handling**: Returns null for missing fields, proper HTTP error codes
+
+## Deployment
+
+### Deploy to Vercel
+
+#### 1. Prerequisites
+
+- Vercel account (https://vercel.com)
+- Vercel CLI: `npm install -g vercel`
+
+#### 2. Deploy
+
+**Option A: Using Vercel CLI**
+
+```bash
+# Login to Vercel
+vercel login
+
+# Deploy
+vercel
+
+# Add environment variables
+vercel env add MISTRAL_API_KEY
+vercel env add OPENAI_API_KEY
+vercel env add API_AUTH_TOKEN
+
+# Deploy to production
+vercel --prod
+```
+
+**Option B: Using GitHub Integration**
+
+1. Push your code to GitHub
+2. Import project in Vercel dashboard
+3. Add environment variables in Vercel project settings:
+   - `MISTRAL_API_KEY`
+   - `OPENAI_API_KEY`
+   - `API_AUTH_TOKEN`
+4. Deploy

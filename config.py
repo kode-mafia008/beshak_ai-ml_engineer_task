@@ -6,6 +6,7 @@ class Settings(BaseSettings):
 
     openai_api_key: str
     mistral_api_key: str
+    api_auth_token: str
 
     model_config = SettingsConfigDict(
         env_file=".env",
