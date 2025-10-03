@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+    beshak_common:
+        build:
+            context: .
+            dockerfile: Dockerfile
+        image: beshak_common
+        env_file:
+            - .env
+        container_name: beshak_common
+        ports:
+            - "8086:8086"
+        environment:
+            - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+        healthcheck:
+            test: ["CMD", "curl", "-f", "http://localhost:8086/health"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+        volumes:
+            - .:/app

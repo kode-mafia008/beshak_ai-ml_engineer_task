@@ -1,0 +1,22 @@
+# core dependencies
+fastapi[standard]>=0.111.0        # latest FastAPI with standard extras
+uvicorn>=0.29.0                   # updated ASGI server
+pydantic>=2.7.1                   # latest stable version
+python-dotenv>=1.0.1              # for .env file loading
+ 
+# file upload and async file operations
+python-multipart>=0.0.9
+aiofiles>=23.2.1
+
+# document text extraction
+tika==2.6.0
+
+# langchain ecosystem 
+langchain>=0.2.2
+langgraph>=0.0.48
+langchain_community>=0.2.2
+langchain-google-genai>=0.0.6
+
+# google genai
+google-generativeai>=0.5.2
+google-genai>=0.5.1
