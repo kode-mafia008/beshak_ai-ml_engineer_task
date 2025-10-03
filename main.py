@@ -1,126 +1,125 @@
-"""
-Document Information Extractor using Google Generative AI
-Extracts specific fields from insurance policy documents (PDF/TXT/DOCX)
-"""
-
-from fastapi import FastAPI, File, UploadFile, HTTPException
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
-from typing import Optional
-import os
+from fastapi import FastAPI, UploadFile, File, HTTPException
 from pathlib import Path
-import tempfile
-import uvicorn
-import json
-from ai_integration import InsurancePolicyData,InsurancePDFProcessor
-from utils import extract_text_from_document
 
-# Initialize FastAPI app
+from models import InsuranceDataResponse, ErrorResponse
+from mistral_parser import MistralDocumentParser
+from openai_extractor import OpenAIExtractor
+from config import settings
+
 app = FastAPI(
-    title="Document Information Extractor API",
-    description="Extract structured information from insurance policy documents using LLM",
-    version="1.0.0"
+    title="Insurance Document Data Extraction API",
+    description="Extract structured data from insurance policy documents using Mistral AI + OpenAI",
+    version="2.0.0"
 )
 
-# API Endpoints
-@app.get("/")
-async def root():
-    """Root endpoint with API information"""
-    return {
-        "message": "Document Information Extractor API",
-        "version": "1.0.0",
-        "endpoints": {
-            "/extract": "POST - Upload document to extract information",
-            "/docs": "GET - API documentation (Swagger UI)",
-            "/health": "GET - Health check"
-        }
-    }
+# Initialize Mistral and OpenAI clients
+try:
+    mistralClient = MistralDocumentParser(api_key=settings.mistral_api_key)
+except ValueError as e:
+    print(f"Warning: Mistral - {str(e)}")
+    mistralClient = None
 
-@app.get("/health")
-async def health_check():
-    """Health check endpoint"""
-    try:
-        # Check if API key is set
-        api_key = os.getenv("OPENAI_API_KEY")
-        if not api_key:
-            return JSONResponse(
-                status_code=503,
-                content={"status": "unhealthy", "message": "OPENAI_API_KEY not configured"}
-            )
-        return {"status": "healthy"}
-    except Exception as e:
-        return JSONResponse(
-            status_code=503,
-            content={"status": "unhealthy", "message": str(e)}
+try:
+    openaiClient = OpenAIExtractor(api_key=settings.openai_api_key)
+except ValueError as e:
+    print(f"Warning: OpenAI - {str(e)}")
+    openaiClient = None
+
+
+@app.post(
+    "/extract",
+    response_model=InsuranceDataResponse,
+    responses={
+        400: {"model": ErrorResponse},
+        500: {"model": ErrorResponse}
+    },
+    summary="Extract insurance data from document",
+    description="Upload an insurance document (PDF, DOC, DOCX, TXT, PNG, JPG) and extract structured data"
+)
+async def extract_insurance_data(file: UploadFile = File(...)):
+    """
+    Extract insurance data from uploaded document
+
+    Process:
+    1. Parse document using Mistral AI to extract text
+    2. Extract structured data using OpenAI
+
+    Args:
+        file: Insurance document file (PDF, DOC, DOCX, TXT, PNG, JPG, JPEG)
+
+    Returns:
+        Extracted insurance data in JSON format
+    """
+
+    # Check if services are initialized
+    if mistralClient is None:
+        raise HTTPException(
+            status_code=500,
+            detail="Mistral API key not configured. Please set MISTRAL_API_KEY environment variable."
         )
 
-@app.post("/extract", response_model=InsurancePolicyData)
-async def extract_document_info(file: UploadFile = File(...)):
-    """
-    Extract structured information from an uploaded document
-    
-    Supports: PDF, TXT, DOCX files
-    
-    Returns: JSON with extracted insurance policy information
-    """
-    
-    # Validate file extension
-    pdf_processor = InsurancePDFProcessor()
-    file_extension = Path(file.filename).suffix.lower()
-    if file_extension not in ['.pdf', '.txt', '.docx']:
+    if openaiClient is None:
+        raise HTTPException(
+            status_code=500,
+            detail="OpenAI API key not configured. Please set OPENAI_API_KEY environment variable."
+        )
+
+    # Validate file format
+    file_ext = Path(file.filename).suffix.lower()
+    if file_ext not in MistralDocumentParser.SUPPORTED_FORMATS:
         raise HTTPException(
             status_code=400,
-            detail=f"Unsupported file format. Please upload PDF, TXT, or DOCX files."
+            detail=f"Unsupported file format: {file_ext}. Supported formats: {', '.join(MistralDocumentParser.SUPPORTED_FORMATS)}"
         )
-    
-    # Save uploaded file temporarily
-    try:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=file_extension) as temp_file:
-            content = await file.read()
-            temp_file.write(content)
-            temp_file_path = temp_file.name
-        
-        # Extract text from document
-        document_text = extract_text_from_document(temp_file_path, file_extension)
 
-        with open("extract.txt", "w") as f:
-            f.write(document_text)
-        
-        if not document_text.strip():
+    try:
+        # Read file content
+        file_content = await file.read()
+
+        # Validate file size
+        if len(file_content) > MistralDocumentParser.MAX_FILE_SIZE:
             raise HTTPException(
                 status_code=400,
-                detail="No text could be extracted from the document"
+                detail=f"File size exceeds maximum limit of {MistralDocumentParser.MAX_FILE_SIZE // (1024*1024)}MB"
             )
-        
-        # Extract structured information using LLM
-        extracted_data = pdf_processor.generate(document_text)
-        
-        return extracted_data
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error processing document: {str(e)}")
-    finally:
-        # Clean up temporary file
-        if os.path.exists(temp_file_path):
-            os.unlink(temp_file_path)
 
-@app.post("/extract-text")
-async def extract_from_text(text: str):
-    """
-    Extract structured information from provided text directly
-    
-    Useful for testing or when text is already extracted
-    """
-    pdf_processor = InsurancePDFProcessor()
-    try:
-        if not text.strip():
-            raise HTTPException(status_code=400, detail="Text cannot be empty")
-        
-        extracted_data = pdf_processor.generate(text)
-        return extracted_data
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error processing text: {str(e)}")
+        # Step 1: Parse document with Mistral AI to extract text
+        document_text = mistralClient.parse_document(file_content, file.filename)
 
+        # Step 2: Extract structured data using OpenAI
+        result = openaiClient.extract_insurance_data(document_text)
+
+        return InsuranceDataResponse(**result)
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
+
+
+@app.get("/", summary="Health check")
+async def root():
+    """Health check endpoint"""
+    return {
+        "status": "healthy",
+        "service": "Insurance Document Data Extraction API",
+        "version": "2.0.0"
+    }
+
+
+@app.get("/health", summary="Health check")
+async def health_check():
+    """Detailed health check"""
+    mistral_configured = mistralClient is not None
+    openai_configured = openaiClient is not None
+
+    all_configured = mistral_configured and openai_configured
+
+    return {
+        "status": "healthy" if all_configured else "degraded",
+        "mistral_configured": mistral_configured,
+        "openai_configured": openai_configured,
+        "supported_formats": list(MistralDocumentParser.SUPPORTED_FORMATS)
+    }
