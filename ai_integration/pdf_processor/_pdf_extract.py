@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.runnables import RunnableSequence
-from .._llm import GeminiLLM, CustomPromptLoader
+from .._llm import OpenAILLM, CustomPromptLoader
 
 load_dotenv()
 
@@ -42,21 +42,21 @@ class InsurancePDFProcessor:
     
     def __init__(self, 
                  api_key: Optional[str] = None, 
-                 model_name: str = "gemini-2.0-flash",
+                 model_name: str = "gpt-4o-mini",
                  langsmith_api_key: Optional[str] = None,
                  prompt_repo: str = "insurance_pdf"):
         """
         Initialize the search mode system with LangChain and structured output
         
         Args:
-            api_key: Google API key (optional, will use env var if not provided)
-            model_name: Gemini model name to use
+            api_key: OpenAI API key (optional, will use env var if not provided)
+            model_name: OpenAI model name to use (gpt-4o-mini, gpt-4o, gpt-4-turbo, etc.)
             langsmith_api_key: LangSmith API key (optional, will use env var if not provided)
             prompt_repo: LangSmith prompt repository name
         """
-        self.api_key = api_key or os.getenv("GOOGLE_API_KEY")
+        self.api_key = api_key or os.getenv("OPENAI_API_KEY")
         if not self.api_key:
-            raise RuntimeError("GOOGLE_API_KEY is required. Please set in environment variables.")
+            raise RuntimeError("OPENAI_API_KEY is required. Please set in environment variables.")
         
         # Store prompt_repo as instance variable
         self.prompt_repo = prompt_repo
@@ -64,8 +64,8 @@ class InsurancePDFProcessor:
         # Initialize Prompt Loader client
         self.prompt_client = CustomPromptLoader()
             
-        # Initialize LangChain components
-        self.llm = GeminiLLM(model_name=model_name)  
+        # Initialize LangChain components with OpenAI
+        self.llm = OpenAILLM(model_name=model_name)  
         
         # Set up Pydantic output parser
         self.output_parser = PydanticOutputParser(pydantic_object=InsurancePolicyData)
@@ -88,7 +88,7 @@ class InsurancePDFProcessor:
         """
         try:
             # Try to get prompt from custom loader
-            prompt_template = self.prompt_client.get_prompt(prompt_repo,input_variables=["insurance_data", "format_instructions"])
+            prompt_template = self.prompt_client.get_prompt(prompt_repo,input_variables=["document_text", "format_instructions"])
             if prompt_template:
                 return prompt_template
             # If the prompt_template is None, fall through to the fallback
@@ -96,12 +96,10 @@ class InsurancePDFProcessor:
             raise RuntimeError(f"Failed to load prompt from LangSmith ({e}). Using fallback prompt.")
     
     def generate(self, document_text: str) -> InsurancePolicyData:
-        """Generate insurance policy data based on name and location""" 
+        """Generate insurance policy data based on document text""" 
 
         response = self.chain.invoke({
             'document_text': document_text,
             'format_instructions': self.output_parser.get_format_instructions()
         })
         return response
-
- 

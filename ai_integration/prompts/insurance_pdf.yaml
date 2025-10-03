@@ -23,7 +23,12 @@ template: |
   
   ### Coverage Specifications:
   - **Room Rent Limit**: Maximum room rent coverage per day (if applicable)
+    * Look for terms like: "Room Rent", "Room Category", "Room Type", "Daily Room Limit", "Accommodation", "Hospital Room", "Room Eligibility", "Single Private AC", "Twin Sharing", "ICU Charges"
+    * May be expressed as: fixed amount, percentage of sum insured, or room category name
   - **Waiting Period**: Initial waiting period before coverage begins
+    * Look for terms like: "Waiting Period", "Initial Waiting Period", "Pre-existing Disease Waiting Period", "Specific Disease Waiting Period", "Coverage Commencement", "Waiting Time", "Cooling Period"
+    * Usually found in sections: Policy Schedule, Terms & Conditions, Exclusions, Coverage Details
+    * May specify different periods for different conditions (30 days general, 2-4 years pre-existing)
   
   ## EXTRACTION GUIDELINES
   
@@ -37,8 +42,19 @@ template: |
   ### Special Considerations:
   - Policy numbers may include letters, numbers, and special characters
   - Sum Assured should include currency denomination
-  - Room Rent Limit may be expressed as percentage or fixed amount
+  - Room Rent Limit may be expressed as:
+    * Fixed amount (e.g., "Rs. 5000 per day")
+    * Percentage (e.g., "1% of sum insured")
+    * Category (e.g., "Single Private AC", "Twin Sharing")
   - Waiting Period should include time unit (days/months/years)
+    * If multiple waiting periods exist, extract the initial/general waiting period
+    * Example formats: "30 days", "2 years", "48 months"
+  
+  ### Search Strategy for Missing Fields:
+  1. **Room Rent Limit**: Check policy schedule, coverage details, benefit tables, room eligibility sections
+  2. **Waiting Period**: Check terms & conditions, exclusions, policy schedule, coverage commencement details
+  3. Look in tables, bullet points, and fine print
+  4. Check both main policy document and annexures/schedules
   
   ## OUTPUT FORMAT
   
